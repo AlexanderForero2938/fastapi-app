@@ -1,301 +1,176 @@
-    from fastapi import FastAPI, File, UploadFile
-    from fastapi.middleware.cors import CORSMiddleware
-    import pandas as pd
-    import uvicorn
-    import json
-    from datetime import datetime
-    import hashlib
-    import base64
-    import requests
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import pandas as pd
+import uvicorn
+import json
+from datetime import datetime
+import hashlib
+import base64
+import requests
 
-    app = FastAPI()
+app = FastAPI()
 
-    # Configurar CORS para permitir solicitudes desde el frontend de Angular.
-    origins = [
-        "http://localhost:4200",  # URL de tu aplicación Angular (ajusta si es necesario)
-        # Puedes agregar otros orígenes si requieres
-    ]
+# Configurar CORS para permitir solicitudes desde el frontend de Angular.
+origins = [
+    "http://localhost:4200",  # URL de tu aplicación Angular (ajusta si es necesario)
+    # Puedes agregar otros orígenes si requieres
+]
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,  # Permitir estos orígenes
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Permitir estos orígenes
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # Clase de seguridad para encriptar la contraseña
-    class Seguridad:
-        CLAVE_SECRETA = "MyApp@2025_SecretKey#123!"
+# Clase de seguridad para encriptar la contraseña
+class Seguridad:
+    CLAVE_SECRETA = "MyApp@2025_SecretKey#123!"
 
-        @staticmethod
-        def encriptar_contrasenia(contrasenia: str, nombre_usuario: str) -> str:
-            salt_input = (nombre_usuario + Seguridad.CLAVE_SECRETA).encode('ascii')
-            salt = hashlib.sha256(salt_input).digest()
-            hashed_password = hashlib.pbkdf2_hmac(
-                hash_name='sha512',
-                password=contrasenia.encode('utf-8'),
-                salt=salt,
-                iterations=10000,
-                dklen=32
-            )
-            return base64.b64encode(hashed_password).decode('utf-8')
+    @staticmethod
+    def encriptar_contrasenia(contrasenia: str, nombre_usuario: str) -> str:
+        salt_input = (nombre_usuario + Seguridad.CLAVE_SECRETA).encode('ascii')
+        salt = hashlib.sha256(salt_input).digest()
+        hashed_password = hashlib.pbkdf2_hmac(
+            hash_name='sha512',
+            password=contrasenia.encode('utf-8'),
+            salt=salt,
+            iterations=10000,
+            dklen=32
+        )
+        return base64.b64encode(hashed_password).decode('utf-8')
 
-    # Endpoint para recibir el archivo XLSX y procesarlo
-    @app.post("/upload")
-    async def upload_file(file: UploadFile = File(...)):
-        # Leer el contenido del archivo subido y guardarlo temporalmente
-        contents = await file.read()
-        temp_file = "temp.xlsx"
-        with open(temp_file, "wb") as f:
-            f.write(contents)
+# Endpoint para recibir el archivo XLSX y procesarlo
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    # Leer el contenido del archivo subido y guardarlo temporalmente
+    contents = await file.read()
+    temp_file = "temp.xlsx"
+    with open(temp_file, "wb") as f:
+        f.write(contents)
 
+    try:
+        # Procesar el archivo usando pandas
+        df = pd.read_excel(temp_file)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=f"Error de permisos al acceder al archivo: {e}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Archivo no encontrado: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ocurrió un error al leer el archivo: {e}")
+
+    url = "http://localhost:5033/api/EstudianteControlador/RegistrarEstudianteAsync"
+    seguridad = Seguridad()
+
+    # URLs para datos de referencia
+    urls = {
+        "Discapacidad": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/discapacidad.json",
+        "Eps": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/eps.json",
+        "Estrato Social": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/estratoSocial.json",
+        "Genero": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/genero.json",
+        "Grado": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/grado.json",
+        "Grupo": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/grupo.json",
+        "Jornada": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/jornada.json",
+        "Nivel Escolaridad": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/nivelEscolaridad.json",
+        "Tipo Rh": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/rh.json",
+        "Sede": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/sede.json",
+        "Sisben": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/sisben.json",
+        "Tipo Documento": "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/tipoDocumento.json",
+    }
+
+    # Descargar y mapear los datos
+    mapeos = {}
+    for key, url_ref in urls.items():
         try:
-            # Procesar el archivo usando pandas
-            df = pd.read_excel(temp_file)
-            url = "http://localhost:5033/api/EstudianteControlador/RegistrarEstudianteAsync"
-            
-            # Instanciar la clase de seguridad
-            seguridad = Seguridad()
-                    
-            urlDiscapacidad = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/discapacidad.json"
-            urlEps = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/eps.json"
-            urlEstratoSocial = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/estratoSocial.json"
-            urlGenero = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/genero.json"
-            urlGrado = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/grado.json"
-            urlGrupo = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/grupo.json"
-            urlJornada = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/jornada.json"
-            urlNivelEscolaridad = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/nivelEscolaridad.json"
-            urlRh = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/rh.json"
-            urlSede = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/sede.json"
-            urlSisben = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/sisben.json"
-            urlTipoDocumento = "https://gist.githubusercontent.com/AlexanderMoreno2938/a318729ac3010434a8a70871db71bfa8/raw/4ea235c58ff32073720e06cf2b29ab602e897754/tipoDocumento.json"
+            response = requests.get(url_ref)
+            if response.status_code == 200:
+                json_data = response.json()
+                mapeos[key] = {item['nombre']: item['id'] for item in json_data.get(key, [])}
+            else:
+                mapeos[key] = {}
+        except json.JSONDecodeError as e:
+            print(f"Error al decodificar JSON de {key}: {e}")
+            mapeos[key] = {}
 
-            responseDiscapacidad = requests.get(urlDiscapacidad)
-            responseEps = requests.get(urlEps)
-            responseEstratoSocial = requests.get(urlEstratoSocial)
-            responseGenero = requests.get(urlGenero)
-            responseGrado = requests.get(urlGrado)
-            responseGrupo = requests.get(urlGrupo)
-            responseJornada = requests.get(urlJornada)
-            responsenivelEscolaridad = requests.get(urlNivelEscolaridad)
-            responseRh = requests.get(urlRh)
-            responseSede = requests.get(urlSede)
-            responseSisben = requests.get(urlSisben)
-            responseTipoDocumento = requests.get(urlTipoDocumento)
+    # Iterar sobre cada fila del DataFrame y enviar los datos a la API
+    for index, row in df.iterrows():
+        discapacidad = row.get('DISCAPACIDAD', None)
+        idDiscapacidad = mapeos.get('Discapacidad', {}).get(discapacidad) if pd.notnull(discapacidad) else None
 
-            # Definir un diccionarios vacios por si falla la solicitud
-            mapeoDiscapacidad = {}
-            mapeoEps = {}
-            mapeoEstratoSocial = {}
-            mapeoGenero = {}
-            mapeoGrado = {}
-            mapeoGrupo = {}
-            mapeoJornada = {}
-            mapeoNivelEscolaridad = {}
-            mapeoRh = {}
-            mapeoSede = {}
-            mapeoSisben = {}
-            mapeoTipoDocumento = {} 
+        eps = row.get('EPS', None)
+        idEps = mapeos.get('Eps', {}).get(eps) if pd.notnull(eps) else None
 
-            if responseDiscapacidad.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonDiscapacidad = responseDiscapacidad.json()  
-                    mapeoDiscapacidad = {item['nombre']: item['id'] for item in jsonDiscapacidad.get('Discapacidad', [])}
+        estratoSocial = row.get('ESTRATO', None)
+        idEstratoSocial = mapeos.get('Estrato Social', {}).get(estratoSocial) if pd.notnull(estratoSocial) else None
 
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de discapacidad {e}")
-                    
-            if responseEps.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonEps = responseEps.json()  
-                    mapeoEps = {item['nombre']: item['id'] for item in jsonEps.get('Eps', [])}
+        sisben = row.get('SISBEN IV', None)
+        idSisben = mapeos.get('Sisben', {}).get(sisben) if pd.notnull(sisben) else None
 
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de eps {e}")
+        grupo = str(row.get('GRUPO', None)) if pd.notnull(row.get('GRUPO')) else None
+        idGrupo = mapeos.get('Grupo', {}).get(grupo) if grupo else None
 
-            if responseEstratoSocial.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonEstratoSocial = responseEstratoSocial.json()  
-                    mapeoEstratoSocial = {item['nombre']: item['id'] for item in jsonEstratoSocial.get('Estrato Social', [])}
+        jornada = row.get('JORNADA', None)
+        idJornada = mapeos.get('Jornada', {}).get(jornada) if pd.notnull(jornada) else None
 
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de estrato social {e}")
+        grado = str(row.get('GRADO_COD', None)) if pd.notnull(row.get('GRADO_COD')) else None
+        idGrado = mapeos.get('Grado', {}).get(grado) if grado else None
 
-            if responseGenero.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonGenero = responseGenero.json()  
-                    mapeoGenero = {item['nombre']: item['id'] for item in jsonGenero.get('Genero', [])}
+        sede = row.get('SEDE', None)
+        idSede = mapeos.get('Sede', {}).get(sede) if pd.notnull(sede) else None
 
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de genero {e}")
+        nivelEscolaridad = row.get('NIVEL', None)
+        idNivelEscolaridad = mapeos.get('Nivel Escolaridad', {}).get(nivelEscolaridad) if pd.notnull(nivelEscolaridad) else None
 
-            if responseGrado.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonGrado = responseGrado.json()  
-                    mapeoGrado = {item['nombre']: item['id'] for item in jsonGrado.get('Grado', [])}
+        tipoDocumento = row.get('TIPODOC', None)
+        idTipoDocumento = mapeos.get('Tipo Documento', {}).get(tipoDocumento) if pd.notnull(tipoDocumento) else None
 
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de grado {e}")
+        genero = row.get('GENERO', None)
+        idGenero = mapeos.get('Genero', {}).get(genero) if pd.notnull(genero) else None
 
-            if responseGrupo.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonGrupo = responseGrupo.json()  
-                    mapeoGrupo = {item['nombre']: item['id'] for item in jsonGrupo.get('Grupo', [])}
+        rh = row.get('RH', None)
+        idRh = mapeos.get('Tipo Rh', {}).get(rh) if pd.notnull(rh) else None
 
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de grupo {e}")
+        # Encriptar contraseña con Seguridad
+        contrasenia_encriptada = seguridad.encriptar_contrasenia(
+            contrasenia=str(row.get('CONTRASENIA', '')),
+            nombre_usuario=str(row.get('USUARIO', ''))
+        )
 
-            if responseJornada.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonJornada = responseJornada.json()  
-                    mapeoJornada = {item['nombre']: item['id'] for item in jsonJornada.get('Jornada', [])}
+        # Construir payload para enviar a la API
+        payload = {
+            "apellidos": row.get('APELLIDOS', ''),
+            "contrasenia": contrasenia_encriptada,
+            "correo": row.get('CORREO', ''),
+            "direccion": row.get('DIRECCION', ''),
+            "fechaNacimiento": str(row.get('FECHANACIMIENTO', '')),
+            "idDiscapacidad": idDiscapacidad,
+            "idEps": idEps,
+            "idEstratoSocial": idEstratoSocial,
+            "idGenero": idGenero,
+            "idGrado": idGrado,
+            "idGrupo": idGrupo,
+            "idJornada": idJornada,
+            "idNivelEscolaridad": idNivelEscolaridad,
+            "idRh": idRh,
+            "idSede": idSede,
+            "idSisben": idSisben,
+            "idTipoDocumento": idTipoDocumento,
+            "nombre": row.get('NOMBRES', ''),
+            "numeroDocumento": str(row.get('NUMDOCUMENTO', '')),
+            "telefono": str(row.get('TELEFONO', '')),
+            "usuario": row.get('USUARIO', ''),
+        }
 
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de jornada {e}")
-
-            if responsenivelEscolaridad.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonNivelEscolaridad = responsenivelEscolaridad.json()  
-                    mapeoNivelEscolaridad = {item['nombre']: item['id'] for item in jsonNivelEscolaridad.get('Nivel Escolaridad', [])}
-
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de nivel escolaridad {e}")
-
-            if responseRh.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonRh = responseRh.json()  
-                    mapeoRh = {item['nombre']: item['id'] for item in jsonRh.get('Tipo Rh', [])}
-
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de rh {e}")
-
-            if responseSede.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonSede = responseSede.json()  
-                    mapeoSede = {item['nombre']: item['id'] for item in jsonSede.get('Sede', [])}
-
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de sede {e}")
-
-            if responseSisben.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonSisben = responseSisben.json()  
-                    mapeoSisben = {item['nombre']: item['id'] for item in jsonSisben.get('Sisben', [])}
-
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de sisben {e}")
-
-            if responseTipoDocumento.status_code == 200:
-                try:
-                    # Convertir la respuesta en JSON
-                    jsonTipoDocumento = responseTipoDocumento.json()  
-                    mapeoTipoDocumento = {item['nombre']: item['id'] for item in jsonTipoDocumento.get('Tipo Documento', [])}
-
-                except json.JSONDecodeError as e:
-                    print(f"Error al decodificar el JSON de tipo de documento {e}")
-
-            # Manejar posibles errores al leer el archivo
-            try:
-                df = pd.read_excel(temp_file)
-            except PermissionError as e:
-                raise HTTPException(status_code=403, detail=f"Error de permisos al acceder al archivo: {e}")
-            except FileNotFoundError as e:
-                raise HTTPException(status_code=404, detail=f"Archivo no encontrado: {e}")
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Ocurrió un error al leer el archivo: {e}")
-
-
-            # Iterar sobre cada fila del Dataframe y enviar los datos a la API
-            for index, row in df.iterrows(): 
-                
-                # Construir el diccionario con los valores de la fila
-
-                discapacidad = row['DISCAPACIDAD'] if pd.notnull(row['DISCAPACIDAD']) else None
-                idDiscapacidad = mapeoDiscapacidad.get(discapacidad, None)
-
-                eps = row['EPS'] if pd.notnull(row['EPS']) else None
-                idEps = mapeoEps.get(eps, None)
-
-                estratoSocial = row['ESTRATO'] if pd.notnull(row['ESTRATO']) else None
-                idEstratoSocial = mapeoEstratoSocial.get(estratoSocial, None)
-                    
-                sisben = row['SISBEN IV'] if pd.notnull(row['SISBEN IV']) else None
-                idSisben = mapeoSisben.get(sisben, None)
-
-                grupo = str(row['GRUPO']) if pd.notnull(row['GRUPO']) else None
-                idGrupo = mapeoGrupo.get(grupo, None)
-
-                jornada = row['JORNADA'] if pd.notnull(row['JORNADA']) else None
-                idJornada = mapeoJornada.get(jornada, None)
-
-                grado = str(row['GRADO_COD']) if pd.notnull(row['GRADO_COD']) else None
-                idGrado = mapeoGrado.get(grado, None)
-                        
-                sede = row['SEDE'] if pd.notnull(row['SEDE']) else None
-                idSede = mapeoSede.get(sede, None)
-
-                nivelEscolaridad = row['NIVEL'] if pd.notnull(row['NIVEL']) else None
-                idNivelEscolaridad = mapeoNivelEscolaridad.get(nivelEscolaridad, None)
-
-                tipoDocumento = row['TIPODOC'] if pd.notnull(row['TIPODOC']) else None
-                idTipoDocumento = mapeoTipoDocumento.get(tipoDocumento, None) 
-
-                tipoRh = row['TIPO DE SANGRE'] if pd.notnull(row['TIPO DE SANGRE']) else None
-                idTipoRh = mapeoRh.get(tipoRh, None)
-
-                genero = row['GENERO'] if pd.notnull(row['GENERO']) else None
-                idGenero = mapeoGenero.get(genero, None)
-
-
-                numeroDocumento = str(row['DOC'])
-
-                contrasenaEncriptada = seguridad.encriptar_contrasenia(numeroDocumento, numeroDocumento)
-
-                datos ={
-                    "pPrimerNombre": row["NOMBRE1"],
-                    "pPrimerApellido": row["APELLIDO1"],
-                    "pFechaNacimiento": row["FECHA_NACIMIENTO"].strftime("%Y-%m-%d"),
-                    "pEdad": int(row["EDAD"]),
-                    "pNumeroDocumento": str(row['DOC']),
-                    "pIdTipoDocumento": idTipoDocumento,
-                    "pIdGenero": idGenero,
-                    "pCodigoEstudiante": str(row['NUI']),
-                    "pfechaMatriculaEstudiante": row["FECHAINI"].strftime("%Y-%m-%d %H:%M:%S"),
-                    "pEstadoEstudiante": str(row['ESTADO']),
-                    "pIdDiscapacidad": idDiscapacidad,
-                    "pIdGrupo": idGrupo,
-                    "pIdJornada": idJornada,
-                    "pIdGrado": idGrado,
-                    "pIdSede": idSede,
-                    "pIdNivelEscolaridad": idNivelEscolaridad,
-                    "pContraseinaUsuario": contrasenaEncriptada,      
-                    "pSegundoNombre": str(row['NOMBRE2']) if pd.notna(row['NOMBRE2']) else None,
-                    "pSegundoApellido": str(row['APELLIDO2']) if pd.notna(row['APELLIDO2']) else None,
-                    "pDireccionResidencia": str(row['BARRIO']) if pd.notna(row['BARRIO']) else None,
-                    "pIdEps": idEps if idEps is not None else None,
-                    "pIdRh": idTipoRh if idTipoRh is not None else None,
-                    "pIdEstratoSocial": idEstratoSocial if idEstratoSocial is not None else None,
-                    "pIdSisben": idSisben if idSisben is not None else None
-                }
-                # Enviar la solicitud POST a la API .NET
-                respuesta = requests.post(url, json=datos)
-                print(f"Registro {index + 1}: {respuesta.status_code} - {respuesta.text}")
+        # Enviar datos a la API
+        try:
+            response = requests.post(url, json=payload)
+            if response.status_code != 200:
+                print(f"Error al enviar datos para fila {index}: {response.status_code} - {response.text}")
         except Exception as e:
-                return {"status": "error", "message": str(e)}
-            
-        return {"status": "ok", "message": "Archivo procesado exitosamente"}
+            print(f"Excepción al enviar datos para fila {index}: {e}")
 
-    if __name__ == "__main__":
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+    return {"mensaje": "Archivo procesado y datos enviados correctamente"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
