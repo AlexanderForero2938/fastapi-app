@@ -1,0 +1,58 @@
+Proyecto Python API – Instrucciones para la Ejecución Local
+===========================================================
+
+Requisitos Previos:
+-------------------
+1. Tener instalado Python 3.10 o superior.
+2. (Opcional) Visual Studio Code u otro editor de código.
+3. Conexión a Internet para descargar las dependencias desde PyPI.
+
+Pasos para Ejecutar la API:
+---------------------------
+
+1. Clonar el repositorio:
+   ------------------------
+   Desde la terminal, ejecuta:
+      git clone <URL_DEL_REPOSITORIO>
+      cd SchoolProject/python-api
+
+2. Crear y activar un entorno virtual:
+   --------------------------------------
+   En Windows:
+      python -m venv venv
+      venv\Scripts\activate
+
+   En macOS/Linux:
+      python3 -m venv venv
+      source venv/bin/activate
+
+3. Instalar las dependencias:
+   ----------------------------
+   Asegúrate de que el archivo 'requirements.txt' (si existe) esté actualizado. Si no tienes uno, puedes instalar manualmente los siguientes paquetes:
+      pip install fastapi uvicorn pandas requests python-multipart
+
+   Si cuentas con 'requirements.txt':
+      pip install -r requirements.txt
+
+4. Ejecutar el servidor de la API:
+   ---------------------------------
+   El archivo principal se llama "CargueEstudiante.py" (sin espacios en el nombre).
+   Desde la terminal, ejecuta:
+      uvicorn CargueEstudiante:app --reload
+
+   Esto iniciará el servidor en http://127.0.0.1:8000.
+
+5. Probar la API:
+   ----------------
+   - Para ver la documentación interactiva, abre en el navegador:
+         http://127.0.0.1:8000/docs
+   - También puedes usar la interfaz de Redoc en:
+         http://127.0.0.1:8000/redoc
+
+Notas Adicionales:
+------------------
+- El endpoint /upload es de tipo POST y está diseñado para recibir archivos XLSX.
+- Asegúrate de que el servicio o endpoint al que se envían las solicitudes POST (en este caso, definido en la variable "url" dentro del código) esté activo o modifícalo según tus necesidades.
+- Cualquier cambio en el código se verá reflejado automáticamente en el servidor si se usa la opción "--reload".
+
+Fin de Instrucciones
